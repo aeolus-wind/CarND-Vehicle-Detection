@@ -23,7 +23,7 @@ def color_scheme(img, cspace='RGB'):
         return img
 
 def bin_image(img, shape=(32,32)):
-    return cv2.reshape(img, shape).ravel()
+    return cv2.resize(img, shape).ravel()
 
 def read_color_histos(img, cspace, bins=32, range=(0,256)):
     img = color_scheme(img, cspace=cspace)
@@ -80,11 +80,18 @@ def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, featu
         return features
 
 def get_features(img):
+    bin_features = bin_image(img, (20,20))
     rgb_features = hist_features(*read_color_histos(img, cspace='RGB', bins=32, range=(0, 256)))
+    hls_features = hist_features(*read_color_histos(img, cspace='HLS', bins=32, range=(0, 256)))
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    hog_features = get_hog_features(gray, orient=8, pix_per_cell=8, cell_per_block=2)
-    features = np.concatenate((rgb_features,hog_features)).reshape((1,-1))
+    hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+    hog_features_gray = get_hog_features(gray, orient=8, pix_per_cell=8, cell_per_block=2)
+    hog_features_h = get_hog_features(hls[:, :, 0], orient=8, pix_per_cell=8, cell_per_block=2)
+    #hog_features_l = get_hog_features(hls[:, :, 1], orient=8, pix_per_cell=8, cell_per_block=2)
+    hog_features_s = get_hog_features(hls[:, :, 2], orient=8, pix_per_cell=8, cell_per_block=2)
+    features = np.concatenate((bin_features, rgb_features, hls_features, hog_features_gray, hog_features_h,
+                               hog_features_s)).reshape((1, -1))
     return features
 
 
