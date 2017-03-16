@@ -6,6 +6,8 @@ from skimage.feature import hog
 from sklearn.preprocessing import StandardScaler
 import glob
 
+hog_params = {'orient': 8, 'pix_per_cell': 8, 'cell_per_block': 2}
+
 
 def color_scheme(img, cspace='RGB'):
     if cspace == 'RGB':
@@ -24,6 +26,7 @@ def color_scheme(img, cspace='RGB'):
 
 def bin_image(img, shape=(32,32)):
     return cv2.resize(img, shape).ravel()
+
 
 def read_color_histos(img, cspace, bins=32, range=(0,256)):
     img = color_scheme(img, cspace=cspace)
@@ -86,10 +89,10 @@ def get_features(img):
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
-    hog_features_gray = get_hog_features(gray, orient=8, pix_per_cell=8, cell_per_block=2)
-    hog_features_h = get_hog_features(hls[:, :, 0], orient=8, pix_per_cell=8, cell_per_block=2)
+    hog_features_gray = get_hog_features(gray, **hog_params)
+    hog_features_h = get_hog_features(hls[:, :, 0], **hog_params)
     #hog_features_l = get_hog_features(hls[:, :, 1], orient=8, pix_per_cell=8, cell_per_block=2)
-    hog_features_s = get_hog_features(hls[:, :, 2], orient=8, pix_per_cell=8, cell_per_block=2)
+    hog_features_s = get_hog_features(hls[:, :, 2], **hog_params)
     features = np.concatenate((bin_features, rgb_features, hls_features, hog_features_gray, hog_features_h,
                                hog_features_s)).reshape((1, -1))
     return features
@@ -97,11 +100,17 @@ def get_features(img):
 
 
 if __name__=='__main__':
-    #img = color_scheme(img)
-    #r, g, b = read_color_histos(img)
-    #r, g, b = plot_animate_color_histos(r,g,b)
-    #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    #features, hog_img = get_hog_features(gray, orient=8, pix_per_cell=20, cell_per_block=5, vis=True)
+    img = cv2.imread('test_images/test1.jpg')
+    img = color_scheme(img)
+    r, g, b = read_color_histos(img, cspace='RGB')
+    r, g, b = convert_histos_to_np(r,g,b)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    features, hog_img = get_hog_features(gray, **hog_params, vis=True)
+
+    cv2.imshow('img', hog_img)
+    cv2.waitKey()
+
+    """
     all_features = []
     far_images = glob.glob('vehicles/KITTI_extracted/*.png')
     for img_path in far_images:
@@ -110,4 +119,5 @@ if __name__=='__main__':
     X = np.concatenate(all_features)
     scale = StandardScaler()
     renormed = scale.fit_transform(X)
+    """
 
