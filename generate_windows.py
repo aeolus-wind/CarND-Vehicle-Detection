@@ -45,14 +45,9 @@ def generate_feature_indices(shape, patch_shape=(64, 64),
 
     for y_idx in range(0, n_blocks_total_y-nblocks_in_patch_y+1, step_size):  # number of patches you have with
         for x_idx in range(0, n_blocks_total_x-nblocks_in_patch_x+1, step_size):  # step_size < patchsize
-            adjust_y_current = 0 #adjust_y * y_idx//8                                # note that step size taken in blocks
-            adjust_x_current = 0 #adjust_x * x_idx//8
-            #print(adjust_y_current)
-
-            y_start = y_idx + adjust_y_current
-            x_start = x_idx + adjust_x_current
-            indices_y_hog = slice(y_start, y_start + nblocks_in_patch_y)
-            indices_x_hog = slice(x_start, x_start + nblocks_in_patch_x)
+            # t
+            indices_y_hog = slice(y_idx, y_idx + nblocks_in_patch_y)
+            indices_x_hog = slice(x_idx, x_idx + nblocks_in_patch_x)
             indices_y_original = slice(y_idx*pix_per_cell[0], (y_idx+ncells_in_patch_y)*pix_per_cell[0])
             indices_x_original = slice(x_idx*pix_per_cell[1], (x_idx+ncells_in_patch_x)*pix_per_cell[1])
             yield indices_y_hog, indices_x_hog, indices_y_original, indices_x_original
