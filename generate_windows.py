@@ -1,49 +1,10 @@
 from skimage.feature import hog
 from generate_features import hog_params
 import cv2
-
-def generate_all_hog_cells(img, y_start, y_stop, hog_params, scale=1):
-    """
-    takes in a 2-d image and generates all hog feature rectangles
-    :param img:
-    :param y_lower:
-    :param y_upper:
-    :param filter_size: restricted to be symmetric in x, y direction
-    :param step_size: restricted to be symmetric in x, y direction
-    :return:
-    """
-    region_interest = img[y_start: y_stop, :]
-    shape = region_interest.shape
-    if scale != 1:
-        region_interest = cv2.resize(region_interest, int(shape[0]/scale), int(shape[1]/scale))
-    shape = region_interest.shape
-    total_blocks_x = shape[1]//hog_params['pix_per_cell'] - 1
-    total_blocks_y = shape[0]//hog_params['pix_per_cell'] - 1
-    features_in_block = hog_params['orient'] * hog_params['cell_per_block']**2
-    window = 64
-    cells_per_step = 2
-    blocks_per_window = window // hog_params['pix_per_cell'] - 1
-    x_steps = (total_blocks_x - blocks_per_window)//cells_per_step
-    y_steps = (total_blocks_y - blocks_per_window)//cells_per_step
-
-    all_hog_features = hog(region_interest, **hog_params, feature_vector=False)
-    hog_window_features = []
-    for x_step in range(x_steps):
-        for y_step in range(y_steps):
-            x_pos = x_step*cells_per_step
-            y_pos = y_step * cells_per_step
-            hog_window_features.append(all_hog_features[y_pos: y_pos+blocks_per_window,
-                                                        x_pos: x_pos + blocks_per_window].ravel())
-            x_left = x_step * hog_params['pix_per_cell']
-            y_top = y_step * hog_params['pix_per_cell']
-
-            subimg = cv2.resize(region_interest[y_top: y_top + window, x_left: x_left + window], (64, 64))
-            bin_features = bin_image(subimg, (20, 20))
-            hist_features = hist_features(read_color_histos(subimg))
-
+import numpy as np
 
 def generate_feature_indices(shape, patch_shape=(64, 64),
-                             pixels_per_cell=(8,8), cell_per_block=(2,2), step_size=2):
+                             pix_per_cell=(8,8), cell_per_block=(2,2), step_size=2):
     """
     This function captures the dimension change that occurs between hog and the other class of features that we
     generate, making the one-to-one mapping between the source of the features evident. The returned values
@@ -65,18 +26,18 @@ def generate_feature_indices(shape, patch_shape=(64, 64),
     |____|____|____|____|
     :return:
     """
-    assert patch_shape[0] % pixels_per_cell[0] == 0
-    assert patch_shape[1] % pixels_per_cell[1] == 0
-    ncells_in_patch_y = int(patch_shape[0]/pixels_per_cell[0])
-    ncells_in_patch_x = int(patch_shape[1]/pixels_per_cell[1])
+    assert patch_shape[0] % pix_per_cell[0] == 0
+    assert patch_shape[1] % pix_per_cell[1] == 0
+    ncells_in_patch_y = int(patch_shape[0]/pix_per_cell[0])
+    ncells_in_patch_x = int(patch_shape[1]/pix_per_cell[1])
     nblocks_in_patch_y = (ncells_in_patch_y - step_size) + 1
     nblocks_in_patch_x = (ncells_in_patch_x - step_size) + 1
 
-    ncells_y_total = (shape[0]//pixels_per_cell[0])  # number of continguous groupings of pixels into cells
+    ncells_y_total = (shape[0]//pix_per_cell[0])  # number of continguous groupings of pixels into cells
     n_blocks_total_y = (ncells_y_total - cell_per_block[0]) + 1  # number of contiguous groupings of pixels into blocks
                                                                  # when you slide by 1
 
-    ncells_x_total = (shape[1]//pixels_per_cell[1])
+    ncells_x_total = (shape[1]//pix_per_cell[1])
     n_blocks_total_x = (ncells_x_total - cell_per_block[1]) + 1
 
     adjust_y = ncells_in_patch_y - nblocks_in_patch_y
@@ -84,30 +45,69 @@ def generate_feature_indices(shape, patch_shape=(64, 64),
 
     for y_idx in range(0, n_blocks_total_y-nblocks_in_patch_y+1, step_size):  # number of patches you have with
         for x_idx in range(0, n_blocks_total_x-nblocks_in_patch_x+1, step_size):  # step_size < patchsize
-            adjust_y_current = adjust_y * y_idx//8                                # note that step size taken in blocks
-            adjust_x_current = adjust_x * x_idx//8
+            adjust_y_current = 0 #adjust_y * y_idx//8                                # note that step size taken in blocks
+            adjust_x_current = 0 #adjust_x * x_idx//8
+            #print(adjust_y_current)
 
             y_start = y_idx + adjust_y_current
             x_start = x_idx + adjust_x_current
             indices_y_hog = slice(y_start, y_start + nblocks_in_patch_y)
             indices_x_hog = slice(x_start, x_start + nblocks_in_patch_x)
-            indices_y_original = slice(y_idx*pixels_per_cell[0], (y_idx+ncells_in_patch_y)*pixels_per_cell[0])
-            indices_x_original = slice(x_idx*pixels_per_cell[1], (x_idx+ncells_in_patch_x)*pixels_per_cell[1])
+            indices_y_original = slice(y_idx*pix_per_cell[0], (y_idx+ncells_in_patch_y)*pix_per_cell[0])
+            indices_x_original = slice(x_idx*pix_per_cell[1], (x_idx+ncells_in_patch_x)*pix_per_cell[1])
             yield indices_y_hog, indices_x_hog, indices_y_original, indices_x_original
 
 
+def draw_rectangle(img, indices_y_original, indices_x_original):
+    top_left = (indices_x_original.start, indices_y_original.start)
+    bottom_right = (indices_x_original.stop, indices_y_original.stop)
+    cv2.rectangle(img, top_left, bottom_right, color=(0, 0, 255), thickness=1)
 
 
+def show_all_generated_zones(img_size):
     """
-    ny_block_center_in_patch = patch_shape[0]//pixels_per_cell[0] - 1
-    nx_block_center_in_patch = patch_shape[1]//pixels_per_cell[1] - 1
-    ny_patches_image = shape[0]//patch_shape[0] - 1
-    nx_patches_image = shape[1]//patch_shape[1] - 1
-    ny_cells = shape[0]//pixels_per_cell[0] - 1
-    nx_cells = shape[1]//pixels_per_cell[1] - 1
+    generates blank images with all regions from which values are sampled for use with the classifier
+    :param img_size:
+    :return: an image with all the drawn rectangles
     """
+    accum_img = np.zeros(img_size)
+    for indices in generate_feature_indices(img_size):
+        indices_y_hog, indices_x_hog, indices_y_original, indices_x_original = indices
+        draw_rectangle(accum_img, indices_y_original=indices_y_original, indices_x_original=indices_x_original)
+    return accum_img
+
+def update_heatmap(heatmap, centroids, scale):
+    """
+    taking the results of applying the classifier to a bunch of regions ,we transform the centroids
+    back to their location in the original space and increment relevant entries in the heat map
+    :param heatmap:
+    :param centroids:
+    :param scale:
+    :return:
+    """
+    for point in centroids:
+        heatmap[np.int8(point)*scale] += 1
+
+def find_centroids(listofscales, y_start, y_stop):
+    pass
 
 if __name__ == '__main__':
-    generate_indices = generate_feature_indices(shape=(128,128), scale=1)
-    for possible_index in generate_indices:
-        print(possible_index)
+    img = cv2.imread('test_images/test1.jpg')
+    print(img.shape)
+    hog
+    hog_features = hog(img[:,:,0], orientations=9,cells_per_block=(2,2), feature_vector=False)
+    print(hog_features.shape)
+    for indices in generate_feature_indices(shape=(256,256), cell_per_block=(2,2)):
+        print(indices)
+
+    """
+    draw the sampled square regions
+    accum_img = np.zeros((256,1280,3))
+
+    for indices in generate_feature_indices((256,1280)):
+        indices_y_hog, indices_x_hog, indices_y_original, indices_x_original = indices
+        draw_rectangle(accum_img, indices_y_original=indices_y_original, indices_x_original=indices_x_original)
+    cv2.imshow('img', accum_img)
+    cv2.waitKey()
+    """
+
