@@ -154,11 +154,19 @@ def process_train_test_data():
     y_test = np.concatenate((y_test_nt, y_test_nt))
     shuffle_in_unison(X_train, y_train)
     shuffle_in_unison(X_test, y_test)
-    scale = StandardScaler()
-    X_train = scale.fit_transform(X_train)
-    X_test = scale.transform(X_test)
+    normalize = StandardScaler()
+    X_train = normalize.fit_transform(X_train)
+    X_test = normalize.transform(X_test)
 
-    return X_train, X_test, y_train, y_test
+    return X_train, X_test, y_train, y_test, normalize
+
+
+def process_data_train_model():
+    model = LinearSVC(C=10.0)
+    X_train, X_test, y_train, y_test, normalize = process_train_test_data()
+    model.fit(X_train, y_train)
+    print(model.score(X_test, y_test))
+    return model, normalize
 
 
 if __name__ == '__main__':

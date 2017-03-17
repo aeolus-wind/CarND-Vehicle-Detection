@@ -4,6 +4,7 @@ from moviepy.editor import VideoFileClip
 from normalize_process_images import to_RGB
 import numpy as np
 from generate_features import get_hog_features
+from generate_windows import draw_all_detected_vehicles2
 
 def pipeline(img):
     pass
@@ -63,15 +64,16 @@ def run_compose_diag_screen(img):
 
 
 def testing_pipeline(img):
-    get_rgb = show_histos_color_features()
-    histo_0, histo_1, histo_2 = get_rgb(img)
-    features, hog_img = get_hog_features(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), orient=8, pix_per_cell=20, cell_per_block=5, vis=True)
+    #get_rgb = show_histos_color_features()
+    #histo_0, histo_1, histo_2 = get_rgb(img)
+    #features, hog_img = get_hog_features(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), orient=8, pix_per_cell=20, cell_per_block=5, vis=True)
+    detected_img = draw_all_detected_vehicles2(img)
 
     processing_steps = {
         #'diag1': histo_0,
         #'diag2': histo_1,
         #'diag3': histo_2,
-        'diag4': hog_img,
+        #'diag4': hog_img,
         #'diag5': img[:,:,0],
         #'diag6': img[:,:,1],
         #'diag7': img[:,:,2],
@@ -81,7 +83,7 @@ def testing_pipeline(img):
         #'diag11': convergence_line_image,
         #'diag12': hull_lines_img
     }
-    return 0, 0, img, processing_steps
+    return 0, 0, detected_img, processing_steps
 
 def run_pipeline(img):
     curverad, offset, main_img, processing_steps = testing_pipeline(img)
@@ -90,6 +92,6 @@ def run_pipeline(img):
 
 if __name__ == '__main__':
     output_path = 'test_project.mp4'
-    clip1 = VideoFileClip("project_video.mp4")
+    clip1 = VideoFileClip("project_video_short.mp4")
     white_clip = clip1.fl_image(run_pipeline)  # NOTE: this function expects color images!!
     white_clip.write_videofile(output_path, audio=False)
