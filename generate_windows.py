@@ -5,9 +5,12 @@ import cv2
 import numpy as np
 from sklearn.externals import joblib
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from scipy.ndimage.measurements import label
+from normalize_process_images import to_RGB
 
 
-def generate_feature_indices(shape, patch_shape=(64, 64),
+def generate_feature_indices(shape, scale,  patch_shape=(64, 64),
                              pix_per_cell=(8,8), cell_per_block=(2,2), step_size=2):
     """
     This function captures the dimension change that occurs between hog and the other class of features that we
@@ -49,9 +52,9 @@ def generate_feature_indices(shape, patch_shape=(64, 64),
 
     for y_idx in range(0, n_blocks_total_y-nblocks_in_patch_y+1, step_size):  # number of patches you have with
         for x_idx in range(0, n_blocks_total_x-nblocks_in_patch_x+1, step_size):  # step_size < patchsize
-
             indices_y_hog = slice(y_idx, y_idx + nblocks_in_patch_y)
             indices_x_hog = slice(x_idx, x_idx + nblocks_in_patch_x)
+            #print(y_idx)
             indices_y_original = slice(y_idx*pix_per_cell[0], (y_idx+ncells_in_patch_y)*pix_per_cell[0])
             indices_x_original = slice(x_idx*pix_per_cell[1], (x_idx+ncells_in_patch_x)*pix_per_cell[1])
             yield indices_y_hog, indices_x_hog, indices_y_original, indices_x_original
@@ -75,7 +78,7 @@ def show_all_generated_zones(img_size):
         draw_rectangle(accum_img, indices_y_original=indices_y_original, indices_x_original=indices_x_original)
     return accum_img
 
-def update_heatmap(heatmap, centroids, scale):
+def update_heatmap(heatmap, boxes, scale):
     """
     taking the results of applying the classifier to a bunch of regions ,we transform the centroids
     back to their location in the original space and increment relevant entries in the heat map
@@ -84,13 +87,12 @@ def update_heatmap(heatmap, centroids, scale):
     :param scale:
     :return:
     """
+    for y_slice, x_slice in boxes:
+        heatmap[y_slice, x_slice] += 1
 
-    for point in centroids:
-        heatmap[np.int8(np.array(point)*scale)] += 1
-
-def find_centroids(img, scale, y_start, y_stop, trained_model, step_size, normalize, is_cv2=False):
+def find_centroids(img, scale, heatmap_shape, y_start, y_stop, trained_model, step_size, normalize, is_cv2=False):
     region_interested_img = img[y_start: y_stop, :, :]
-    heatmap = np.zeros_like(region_interested_img)  # heatmap at original scale
+    heatmap = np.zeros(heatmap_shape)  # heatmap at original scale
     shape = region_interested_img.shape
     if scale != 1:
         shape = (int(shape[0]/scale), int(shape[1]/scale))
@@ -113,7 +115,7 @@ def find_centroids(img, scale, y_start, y_stop, trained_model, step_size, normal
 
     boxes = []
     centroids = []
-    for indices in generate_feature_indices(shape, step_size=step_size):
+    for indices in generate_feature_indices(shape, scale, step_size=step_size):
         indices_y_hog, indices_x_hog, indices_y_original, indices_x_original = indices
 
         bin_features = bin_image(rgb, shape=(20, 20))
@@ -127,9 +129,6 @@ def find_centroids(img, scale, y_start, y_stop, trained_model, step_size, normal
 
 
         if int(trained_model.predict(features)[0]) == 1:   # predicted a car
-            y_middle = int((indices_y_original.start + indices_y_original.stop)/2)
-            x_middle = int((indices_x_original.start + indices_x_original.stop)/2)
-            centroids.append((y_middle, x_middle))
             if scale != 1:
                 #shift/scale y and x to original space
                 y = slice(y_start + int(indices_y_original.start*scale), y_start + int(indices_y_original.stop*scale))
@@ -138,7 +137,8 @@ def find_centroids(img, scale, y_start, y_stop, trained_model, step_size, normal
             else:
                 y = slice(y_start + int(indices_y_original.start*scale), y_start + int(indices_y_original.stop*scale))
                 boxes.append((y, indices_x_original))
-    update_heatmap(heatmap, centroids, scale)
+    update_heatmap(heatmap, boxes, scale)
+
     return heatmap, boxes
 
 
@@ -163,32 +163,114 @@ def draw_all_detected_vehicles(img):
 def draw_all_detected_vehicles2(img):
     model=joblib.load('model.pkl')
     normalize = joblib.load('normalize.pkl')
+    heatmap_shape = img.shape[:2]
     all_boxes = []
-    heatmap, boxes = find_centroids(img, scale=4.0, y_start=400, y_stop=656, trained_model=model, step_size=2, normalize=normalize)
+    heatmap_accum = np.zeros(heatmap_shape)
+    heatmap, boxes = find_centroids(img, scale=1.7, heatmap_shape=heatmap_shape, y_start=400, y_stop=656, trained_model=model, step_size=3,
+                                    normalize=normalize)
     all_boxes += boxes
-    heatmap, boxes = find_centroids(img, scale=2.0, y_start=582, y_stop=720, trained_model=model, step_size=2, normalize=normalize)
-    all_boxes += boxes
-    heatmap, boxes = find_centroids(img, scale=1.5, y_start=400, y_stop=656, trained_model=model, step_size=3, normalize=normalize)
-    all_boxes += boxes
-    heatmap, boxes = find_centroids(img, scale=0.5, y_start=350, y_stop=414, trained_model=model, step_size=4, normalize=normalize)
-    all_boxes += boxes
+    heatmap_accum += heatmap
+
+    constant_parameters = {'normalize': normalize,
+                           'trained_model': model,
+                           'heatmap_shape': heatmap_shape
+                           }
+    variable_parameters = [
+        {'scale': 2.0,
+         'y_start': 400,
+         'y_stop': 656,
+         'step_size': 3
+         },
+        {'scale': 2.0,
+         'y_start': 400,
+         'y_stop': 528,
+         'step_size': 3
+         },
+        {'scale': 160/64.0,
+         'y_start': 520,
+         'y_stop':680,
+         'step_size':3
+         },
+        {'scale':0.5,
+         'y_start':350,
+         'y_stop': 414,
+         'step_size': 4
+        }
+    ]
+
+    for vp in variable_parameters:
+        heatmap, boxes = find_centroids(img, **vp, **constant_parameters)
+        all_boxes += boxes
+        heatmap_accum += heatmap
+
     blank = np.zeros_like(img)
     for y, x in all_boxes:
         draw_rectangle(blank, y, x)
     w_boxes = cv2.addWeighted(blank, 1.0, img, 1.0, 0)
-    return w_boxes
+    return w_boxes, heatmap_accum
+
+
+def apply_threshold(heatmap, threshold):
+    # Zero out pixels below the threshold
+    heatmap[heatmap <= threshold] = 0
+    # Return thresholded map
+    return heatmap
+
+
+# regions which are excluded from heatmap
+# the rational is that these deal with separate subproblems
+# if a car is in the too_close_to_car region
+# the car will have to perform some sort of evasive maneuver
+# we will also see the other car merging in from the other lane or appear from in front or beside us
+# We also note that this case is distinguished by the fact the labeling box will be very large
+# these cases are outside the scope of this project
+# the left of lane mask should be dynamic and use a setup like the last project
+# for the purposes of this, it should be fine that it's a constant region
+too_close_to_car = [np.array([(500, 520), (291, 690), (1080, 680), (812, 520)], np.int32)]
+left_of_lane = [np.array([(0,691), (0,400), (646,400), (291, 691)], np.int32)]
+
+
+def remove_cases_from_heatmap(heatmap, region_to_remove):
+    if len(heatmap.shape)<2:
+        print("heat map wrong dimension")
+    cv2.fillPoly(heatmap, region_to_remove, (0, 0, 0))
+
+
+def process_heatmap(heatmap):
+    remove_cases_from_heatmap(heatmap, too_close_to_car)
+    remove_cases_from_heatmap(heatmap, left_of_lane)
+    return apply_threshold(heatmap, 2)
+
+def draw_labeled_bboxes(img, labels):
+    # Iterate through all detected cars
+    for car_number in range(1, labels[1]+1):
+        # Find pixels with each car_number label value
+        nonzero = (labels[0] == car_number).nonzero()
+        # Identify x and y values of those pixels
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        # Define a bounding box based on min/max x and y
+        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+        # Draw the box on the image
+        cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+    # Return the image
+    return img
 
 if __name__ == '__main__':
+    #generate_feature_indices((64,64), scale, patch_shape=(64, 64),
+#                             pix_per_cell=(8, 8), cell_per_block=(2, 2), step_size=2)
+
+    #model, normalize = process_data_train_model(0.1, 'model', 'normalize')
+    img = cv2.imread('test_images/test1.jpg')
+
+    w_boxes, heatmap = draw_all_detected_vehicles2(img)
+    heatmap = process_heatmap(heatmap)
+    labels = label(heatmap)
+    labeled_boxes = draw_labeled_bboxes(img, labels)
 
 
-    img = cv2.imread('test_images/test2.jpg')
-
-    model, normalize = process_data_train_model()
-    import pickle
-    joblib.dump(model, 'model.pkl')
-    joblib.dump(normalize, 'normalize.pkl')
-    #model = joblib.load('model.pkl')
-    #normalize = joblib.load('normalize.pkl')
+    cv2.imshow('img', labeled_boxes)
+    cv2.waitKey()
 
     """
     all_boxes = []

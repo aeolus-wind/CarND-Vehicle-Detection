@@ -6,6 +6,7 @@ import numpy as np
 import glob
 from sklearn.preprocessing import StandardScaler
 import re
+from sklearn.externals import joblib
 
 model = LinearSVC(C=1.0)
 
@@ -161,15 +162,19 @@ def process_train_test_data():
     return X_train, X_test, y_train, y_test, normalize
 
 
-def process_data_train_model():
-    model = LinearSVC(C=10.0)
+def process_data_train_model(c, model_path, normalize_path):
+    model = LinearSVC(C=c)
     X_train, X_test, y_train, y_test, normalize = process_train_test_data()
     model.fit(X_train, y_train)
     print(model.score(X_test, y_test))
+    joblib.dump(model, model_path + '.pkl')
+    joblib.dump(normalize, normalize_path + '.pkl')
     return model, normalize
 
 
 if __name__ == '__main__':
+    for c in [0.3, 0.5, 0.8, 1.0, 10, 100, 1000, 1000]:
+        process_data_train_model(c)
 
     """
     non_vehicle_folders = ['Extras']
@@ -186,9 +191,10 @@ if __name__ == '__main__':
     print(y_train.shape)
     print(y_test.shape)
     """
-
+    """
     model = LinearSVC(C=1.0)
     X_train, X_test, y_train, y_test = process_train_test_data()
     model.fit(X_train, y_train)
     print('accuracy is ', sum(model.predict(X_test)==y_test)/len(y_test))
     #accuracy of 99.7 percent with no tuning???
+    """

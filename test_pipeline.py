@@ -4,7 +4,8 @@ from moviepy.editor import VideoFileClip
 from normalize_process_images import to_RGB
 import numpy as np
 from generate_features import get_hog_features
-from generate_windows import draw_all_detected_vehicles2
+from generate_windows import draw_all_detected_vehicles2, process_heatmap, draw_labeled_bboxes
+from scipy.ndimage.measurements import label
 
 def pipeline(img):
     pass
@@ -67,10 +68,14 @@ def testing_pipeline(img):
     #get_rgb = show_histos_color_features()
     #histo_0, histo_1, histo_2 = get_rgb(img)
     #features, hog_img = get_hog_features(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), orient=8, pix_per_cell=20, cell_per_block=5, vis=True)
-    detected_img = draw_all_detected_vehicles2(img)
+
+    w_boxes, heatmap = draw_all_detected_vehicles2(img)
+    heatmap = process_heatmap(heatmap)
+    labels = label(heatmap)
+    labeled_boxes = draw_labeled_bboxes(img, labels)
 
     processing_steps = {
-        #'diag1': histo_0,
+        'diag1': w_boxes,
         #'diag2': histo_1,
         #'diag3': histo_2,
         #'diag4': hog_img,
@@ -83,7 +88,7 @@ def testing_pipeline(img):
         #'diag11': convergence_line_image,
         #'diag12': hull_lines_img
     }
-    return 0, 0, detected_img, processing_steps
+    return 0, 0, labeled_boxes, processing_steps
 
 def run_pipeline(img):
     curverad, offset, main_img, processing_steps = testing_pipeline(img)
@@ -92,6 +97,6 @@ def run_pipeline(img):
 
 if __name__ == '__main__':
     output_path = 'test_project.mp4'
-    clip1 = VideoFileClip("project_video_short.mp4")
+    clip1 = VideoFileClip("project_video.mp4")
     white_clip = clip1.fl_image(run_pipeline)  # NOTE: this function expects color images!!
     white_clip.write_videofile(output_path, audio=False)
