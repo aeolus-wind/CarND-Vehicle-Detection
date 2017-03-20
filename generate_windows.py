@@ -100,31 +100,39 @@ def find_centroids(img, scale, heatmap_shape, y_start, y_stop, trained_model, st
 
     if is_cv2:
         rgb = color_scheme(region_interested_img)
-        gray = cv2.cvtColor(region_interested_img, cv2.COLOR_BGR2GRAY)
-        hls = cv2.cvtColor(region_interested_img, cv2.COLOR_BGR2HLS)
+        yuv = cv2.cvtColor(region_interested_img, cv2.COLOR_BGR2YUV)
     else:
         rgb = img
-        gray = cv2.cvtColor(region_interested_img, cv2.COLOR_RGB2GRAY)
-        hls = cv2.cvtColor(region_interested_img, cv2.COLOR_RGB2HLS)
+        yuv = cv2.cvtColor(region_interested_img, cv2.COLOR_RGB2YUV)
 
-     #color_scheme(region_interested_img, cspace='HLS')
-    batch_hog_features_gray = get_hog_features(gray, **hog_params, feature_vec=False)
-    batch_hog_features_h = get_hog_features(hls[:, :, 0], **hog_params, feature_vec=False)
-    batch_hog_features_s = get_hog_features(hls[:, :, 2], **hog_params, feature_vec=False)
+    batch_hog_features_y = get_hog_features(yuv[:, :, 0], **hog_params, feature_vec=False)
+    batch_hog_features_u = get_hog_features(yuv[:, :, 1], **hog_params, feature_vec=False)
+    batch_hog_features_v = get_hog_features(yuv[:, :, 2], **hog_params, feature_vec=False)
+    """
+    hls = color_scheme(img, 'HLS')
 
+    bin_features = bin_image(hls, (20, 20))
+    # rgb_features = hist_features(*read_color_histos(rgb, bins=32, range=(0, 256)))
+    hls_features = hist_features(*read_color_histos(hls, bins=32, range=(0, 256)))
+
+    hog_features_h = get_hog_features(hls[:, :, 0], **hog_params)
+    hog_features_l = get_hog_features(hls[:, :, 1], **hog_params)
+    hog_features_s = get_hog_features(hls[:, :, 2], **hog_params)
+    features = np.concatenate((bin_features, hls_features, hog_features_h, hog_features_l,
+                               hog_features_s)).reshape((1, -1))
+
+    """
 
     boxes = []
-    centroids = []
     for indices in generate_feature_indices(shape, scale, step_size=step_size):
         indices_y_hog, indices_x_hog, indices_y_original, indices_x_original = indices
 
-        bin_features = bin_image(rgb, shape=(20, 20))
-        rgb_hist_features = hist_features(*read_color_histos(rgb[indices_y_original, indices_x_original], bins=32, range=(0,256)))
-        hls_hist_features = hist_features(*read_color_histos(hls[indices_y_original, indices_x_original], bins=32, range=(0,256)))
-        hog_features_gray = batch_hog_features_gray[indices_y_hog, indices_x_hog].ravel()
-        hog_features_h = batch_hog_features_h[indices_y_hog, indices_x_hog].ravel()
-        hog_features_s = batch_hog_features_s[indices_y_hog, indices_x_hog].ravel()
-        features = np.concatenate((bin_features, rgb_hist_features, hls_hist_features, hog_features_gray, hog_features_h, hog_features_s)).reshape((1,-1))
+        bin_features = bin_image(yuv, shape=(20, 20))
+        hls_hist_features = hist_features(*read_color_histos(yuv[indices_y_original, indices_x_original], bins=32, range=(0,256)))
+        hog_features_y = batch_hog_features_y[indices_y_hog, indices_x_hog].ravel()
+        hog_features_u = batch_hog_features_u[indices_y_hog, indices_x_hog].ravel()
+        hog_features_v = batch_hog_features_v[indices_y_hog, indices_x_hog].ravel()
+        features = np.concatenate((bin_features, hls_hist_features, hog_features_y, hog_features_u, hog_features_v)).reshape((1,-1))
         features = normalize.transform(features)
 
 
@@ -175,27 +183,46 @@ def draw_all_detected_vehicles2(img):
                            'trained_model': model,
                            'heatmap_shape': heatmap_shape
                            }
-    variable_parameters = [
-        {'scale': 2.0,
+
+    """
+            {'scale': 1.7,
+             'y_start': 400,
+             'y_stop': 528,
+             'step_size': 2
+             },
+            {'scale': 1.5,
+             'y_start': 400,
+             'y_stop': 528,
+             'step_size': 2
+             },
+
+             {'scale': 1.5,
          'y_start': 400,
          'y_stop': 656,
-         'step_size': 3
+         'step_size': 2
          },
-        {'scale': 2.0,
+             """
+    variable_parameters = [
+        {'scale': 1.0,
          'y_start': 400,
          'y_stop': 528,
          'step_size': 3
          },
+        {'scale': 1.5,
+         'y_start': 400,
+         'y_stop': 528,
+         'step_size': 2
+         },
+        {'scale': 2.0,
+         'y_start': 400,
+         'y_stop': 656,
+         'step_size': 2
+         },
         {'scale': 160/64.0,
          'y_start': 520,
-         'y_stop':680,
-         'step_size':3
-         },
-        {'scale':0.5,
-         'y_start':350,
-         'y_stop': 414,
-         'step_size': 4
-        }
+         'y_stop': 680,
+         'step_size': 1
+         }
     ]
 
     for vp in variable_parameters:
@@ -243,6 +270,7 @@ def process_heatmap(heatmap):
 
 def draw_labeled_bboxes(img, labels):
     # Iterate through all detected cars
+    copy = img.copy()
     for car_number in range(1, labels[1]+1):
         # Find pixels with each car_number label value
         nonzero = (labels[0] == car_number).nonzero()
@@ -252,15 +280,11 @@ def draw_labeled_bboxes(img, labels):
         # Define a bounding box based on min/max x and y
         bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
         # Draw the box on the image
-        cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+        cv2.rectangle(copy, bbox[0], bbox[1], (0,0,255), 6)
     # Return the image
-    return img
+    return copy
 
 if __name__ == '__main__':
-    #generate_feature_indices((64,64), scale, patch_shape=(64, 64),
-#                             pix_per_cell=(8, 8), cell_per_block=(2, 2), step_size=2)
-
-    #model, normalize = process_data_train_model(0.1, 'model', 'normalize')
     img = cv2.imread('test_images/test1.jpg')
 
     w_boxes, heatmap = draw_all_detected_vehicles2(img)

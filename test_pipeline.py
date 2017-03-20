@@ -6,6 +6,9 @@ import numpy as np
 from generate_features import get_hog_features
 from generate_windows import draw_all_detected_vehicles2, process_heatmap, draw_labeled_bboxes
 from scipy.ndimage.measurements import label
+from car_tracker import CarTracker, get_bboxs, draw_bboxes
+
+tracker = CarTracker()
 
 def pipeline(img):
     pass
@@ -34,12 +37,9 @@ def compose_diag_screen(curverad=0, offset=0, main_diag=None,
     # first is x_slice, second y_slice
     # both slices define the shape of the image to be placed
     placement_diag = [(slice(0, 720), slice(0, 1280), main_diag),
-                      (slice(0, 240), slice(1280, 1600), diag1),
-                      (slice(0, 240), slice(1600, 1920), diag2),
-                      (slice(240, 480), slice(1280, 1600), diag3),
-                      (slice(240, 480), slice(1600, 1920), diag4),
+                      (slice(0, 480), slice(1280, 1920), diag1),
 
-                      (slice(600, 840), slice(1280, 1600), diag5),
+                      (slice(600, 1080), slice(1280, 1920), diag5),
                       (slice(600, 840), slice(1600, 1920), diag6),
                       (slice(840, 1080), slice(1280, 1600), diag7),
 
@@ -68,18 +68,25 @@ def testing_pipeline(img):
     #get_rgb = show_histos_color_features()
     #histo_0, histo_1, histo_2 = get_rgb(img)
     #features, hog_img = get_hog_features(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), orient=8, pix_per_cell=20, cell_per_block=5, vis=True)
+    global tracker
 
     w_boxes, heatmap = draw_all_detected_vehicles2(img)
     heatmap = process_heatmap(heatmap)
     labels = label(heatmap)
+    raw_bboxs = get_bboxs(labels)
+
+    tracker.update_cars(raw_bboxs)
+    filtered_bboxs = tracker.get_bboxs()
+
+    draw_filtered_bboxs = draw_bboxes(img, filtered_bboxs)
     labeled_boxes = draw_labeled_bboxes(img, labels)
+
+    cv2.line(labeled_boxes, (0, 400), (1280, 400), (0,0,255), thickness=3)
+    cv2.line(labeled_boxes, (0, 656), (1280, 656), (0, 0, 255), thickness=3)
 
     processing_steps = {
         'diag1': w_boxes,
-        #'diag2': histo_1,
-        #'diag3': histo_2,
-        #'diag4': hog_img,
-        #'diag5': img[:,:,0],
+        'diag5': labeled_boxes,
         #'diag6': img[:,:,1],
         #'diag7': img[:,:,2],
         #'diag8': convolution,
@@ -88,7 +95,7 @@ def testing_pipeline(img):
         #'diag11': convergence_line_image,
         #'diag12': hull_lines_img
     }
-    return 0, 0, labeled_boxes, processing_steps
+    return 0, 0, draw_filtered_bboxs, processing_steps
 
 def run_pipeline(img):
     curverad, offset, main_img, processing_steps = testing_pipeline(img)

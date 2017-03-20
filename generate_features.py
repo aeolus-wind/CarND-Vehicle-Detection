@@ -50,15 +50,12 @@ def convert_histos_to_np(histo_0, histo_1, histo_2):
     bin_centers = (bin_edges[1:] + bin_edges[0:len(bin_edges) - 1]) / 2
     ax1.set_title('histogram color coordinate 0')
     ax1.set_xlim(0, 256)
-    ax1.set_ylim(0, 100)
     ax1.bar(bin_centers, histo_0[0])
     ax2.set_title('histogram color coordinate 1')
     ax2.set_xlim(0,256)
-    ax2.set_ylim(0,100)
     ax2.bar(bin_centers, histo_1[0])
     ax3.set_title('histogram color coordiante 2')
     ax3.set_xlim(0,256)
-    ax3.set_ylim(0, 100)
     ax3.bar(bin_centers, histo_2[0])
     return mplfig_to_npimage(fig1), mplfig_to_npimage(fig2), mplfig_to_npimage(fig3)
 
@@ -83,34 +80,60 @@ def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, featu
         return features
 
 def get_features(img):
-    rgb = color_scheme(img, cspace='RGB')
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    hls = color_scheme(img, 'HLS')
+    #rgb = color_scheme(img, cspace='RGB')
+    #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    yuv = color_scheme(img, 'YUV')
+    print(np.max(yuv))
+    print(np.min(yuv))
 
-    bin_features = bin_image(rgb, (20,20))
-    rgb_features = hist_features(*read_color_histos(rgb, bins=32, range=(0, 256)))
-    hls_features = hist_features(*read_color_histos(hls, bins=32, range=(0, 256)))
+    bin_features = bin_image(yuv, (20,20))
+    #rgb_features = hist_features(*read_color_histos(rgb, bins=32, range=(0, 256)))
+    yuv_features = hist_features(*read_color_histos(yuv, bins=32, range=(0, 256)))
 
-    hog_features_gray = get_hog_features(gray, **hog_params)
-    hog_features_h = get_hog_features(hls[:, :, 0], **hog_params)
-    #hog_features_l = get_hog_features(hls[:, :, 1], orient=8, pix_per_cell=8, cell_per_block=2)
-    hog_features_s = get_hog_features(hls[:, :, 2], **hog_params)
-    features = np.concatenate((bin_features, rgb_features, hls_features, hog_features_gray, hog_features_h,
-                               hog_features_s)).reshape((1, -1))
+    hog_features_y = get_hog_features(yuv[:,:,0], **hog_params)
+    hog_features_u = get_hog_features(yuv[:, :, 1], **hog_params)
+    hog_features_v = get_hog_features(yuv[:, :, 2], **hog_params)
+    features = np.concatenate((bin_features, yuv_features, hog_features_y, hog_features_u,
+                               hog_features_v)).reshape((1, -1))
     return features
+
+
+def plot_histogram(img, histo_number=1):
+    h1, h2, h3 = read_color_histos(img)
+
+    bin_edges = h1[1]
+    bin_centers = (bin_edges[1:] + bin_edges[0: -1])/ 2
+
+    plt.figure(figsize=(12,3))
+    plt.subplot(131)
+    plt.bar(bin_centers, h1[0])
+    plt.xlim(0,256)
+    plt.title('histogram 1')
+    plt.subplot(132)
+    plt.bar(bin_centers, h2[0])
+    plt.xlim(0, 256)
+    plt.title('histogram 2')
+    plt.subplot(133)
+    plt.bar(bin_centers, h3[0])
+    plt.xlim(0, 256)
+    plt.title('histogram 3')
+    plt.show()
+
 
 
 
 if __name__=='__main__':
     img = cv2.imread('test_images/test1.jpg')
-    img = color_scheme(img, cspace='RGB')
-    r, g, b = read_color_histos(img)
-    r, g, b = convert_histos_to_np(r,g,b)
+    img = color_scheme(img, cspace='YUV')
+    y, u, v = read_color_histos(img)
+    y, u, v = convert_histos_to_np(y,u,v)
+    plot_histogram(img)
+
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     features, hog_img = get_hog_features(gray, **hog_params, vis=True)
 
-    cv2.imshow('img', hog_img)
-    cv2.waitKey()
+    #cv2.imshow('img', hog_img)
+    #cv2.waitKey()
 
     """
     all_features = []

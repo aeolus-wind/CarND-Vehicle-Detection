@@ -173,8 +173,9 @@ def process_data_train_model(c, model_path, normalize_path):
 
 
 if __name__ == '__main__':
-    for c in [0.3, 0.5, 0.8, 1.0, 10, 100, 1000, 1000]:
-        process_data_train_model(c)
+    process_data_train_model(1.0, 'model', 'normalize')
+    #for c in [0.3, 0.5, 0.8, 1.0, 10, 100, 1000, 1000]:
+    #    process_data_train_model(c)
 
     """
     non_vehicle_folders = ['Extras']
