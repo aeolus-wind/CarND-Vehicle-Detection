@@ -12,7 +12,7 @@
 [image4]: ./writeup_images/sliding_windows.png
 [image5]: ./writeup_images/car_patches_and_heatmap.png
 [image6]: ./writeup_images/heatmap_example.png
-[video1]: ./project_video.mp4
+[video1]: ./submission.mp4
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
 ###Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
