@@ -132,9 +132,9 @@ def process_time_dependent(non_vehicle_root, vehicle_root, feature_generating_fu
 
 def process_train_test_data():
     # data not dependent on time
-    non_vehicle_folders = ['Extras']
+    non_vehicle_folders = ['Extras', 'GTI']
     non_vehicle_root = 'non-vehicles'
-    vehicle_folders = ['KITTI_extracted']
+    vehicle_folders = ['KITTI_extracted', 'GIT_Far', 'GTI_Left', 'GTI_MiddleClose', 'GTI_Right']
     vehicle_root = 'vehicles'
 
     X_train_nt, X_test_nt, y_train_nt, y_test_nt = read_train_test_split(non_vehicle_root, non_vehicle_folders,
@@ -143,16 +143,22 @@ def process_train_test_data():
     print("Got non-time dependent data. Shapes are for train and test respectively.")
     print(X_train_nt.shape)
     print(X_test_nt.shape)
-    X_train_t, X_test_t, y_train_t, y_test_t = process_time_dependent(non_vehicle_root, vehicle_root,
-                                                                      get_features, used_alone=False)
+    #X_train_t, X_test_t, y_train_t, y_test_t = process_time_dependent(non_vehicle_root, vehicle_root,
+                                                                      #get_features, used_alone=False)
 
-    print("Got time-dependent data. Shapes are for train and test respectively.")
-    print(X_train_t.shape)
-    print(X_test_t.shape)
-    X_train = np.concatenate((X_train_nt, X_train_t))
-    X_test = np.concatenate((X_test_nt, X_test_nt))
-    y_train = np.concatenate((y_train_nt, y_train_t))
-    y_test = np.concatenate((y_test_nt, y_test_nt))
+    #print("Got time-dependent data. Shapes are for train and test respectively.")
+    #print(X_train_t.shape)
+    #print(X_test_t.shape)
+
+    #X_train = np.concatenate((X_train_nt, X_train_t))
+    X_train = X_train_nt
+    #X_test = np.concatenate((X_test_nt, X_test_t))
+    X_test = X_test_nt
+    #y_train = np.concatenate((y_train_nt, y_train_t))
+    #y_test = np.concatenate((y_test_nt, y_test_t))
+    y_train = y_train_nt
+    y_test = y_test_nt
+
     shuffle_in_unison(X_train, y_train)
     shuffle_in_unison(X_test, y_test)
     normalize = StandardScaler()

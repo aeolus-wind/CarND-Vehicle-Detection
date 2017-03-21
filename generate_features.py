@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from skimage.feature import hog
 from sklearn.preprocessing import StandardScaler
 import glob
+from normalize_process_images import to_RGB
 
 hog_params = {'orient': 8, 'pix_per_cell': 8, 'cell_per_block': 2}
 
@@ -80,20 +81,18 @@ def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, featu
         return features
 
 def get_features(img):
-    #rgb = color_scheme(img, cspace='RGB')
+    hls = color_scheme(img, cspace='HLS')
     #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     yuv = color_scheme(img, 'YUV')
-    print(np.max(yuv))
-    print(np.min(yuv))
 
-    bin_features = bin_image(yuv, (20,20))
-    #rgb_features = hist_features(*read_color_histos(rgb, bins=32, range=(0, 256)))
+    bin_features = bin_image(yuv, (32,32))
+    hls_features = hist_features(*read_color_histos(hls, bins=32, range=(0, 256)))
     yuv_features = hist_features(*read_color_histos(yuv, bins=32, range=(0, 256)))
 
     hog_features_y = get_hog_features(yuv[:,:,0], **hog_params)
     hog_features_u = get_hog_features(yuv[:, :, 1], **hog_params)
     hog_features_v = get_hog_features(yuv[:, :, 2], **hog_params)
-    features = np.concatenate((bin_features, yuv_features, hog_features_y, hog_features_u,
+    features = np.concatenate((bin_features, hls_features, yuv_features, hog_features_y, hog_features_u,
                                hog_features_v)).reshape((1, -1))
     return features
 
@@ -125,15 +124,18 @@ def plot_histogram(img, histo_number=1):
 if __name__=='__main__':
     img = cv2.imread('test_images/test1.jpg')
     img = color_scheme(img, cspace='YUV')
-    y, u, v = read_color_histos(img)
-    y, u, v = convert_histos_to_np(y,u,v)
-    plot_histogram(img)
+    #y, u, v = read_color_histos(img)
+    #y, u, v = convert_histos_to_np(y,u,v)
+    #plot_histogram(img)
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    features, hog_img = get_hog_features(gray, **hog_params, vis=True)
+    luv = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
+    features, hog_img = get_hog_features(luv[:, :, 1], **hog_params, vis=True)
 
-    #cv2.imshow('img', hog_img)
-    #cv2.waitKey()
+    cv2.imwrite('./writeup_images/hog_example.png', to_RGB(hog_img))
+    print(hog_img.shape)
+
+    cv2.imshow('img', hog_img)
+    cv2.waitKey()
 
     """
     all_features = []

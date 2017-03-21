@@ -4,9 +4,10 @@ from moviepy.editor import VideoFileClip
 from normalize_process_images import to_RGB
 import numpy as np
 from generate_features import get_hog_features
-from generate_windows import draw_all_detected_vehicles2, process_heatmap, draw_labeled_bboxes
+from generate_windows import draw_all_detected_vehicles2, process_heatmap, draw_labeled_bboxs
 from scipy.ndimage.measurements import label
-from car_tracker import CarTracker, get_bboxs, draw_bboxes
+from car_tracker import CarTracker
+from generate_windows import get_bboxs, draw_bboxs
 
 tracker = CarTracker()
 
@@ -19,16 +20,13 @@ def insert_diag_into(frame, diag, x_slice, y_slice):
     y_shape = y_slice.stop - y_slice.start
     frame[x_slice, y_slice] = cv2.resize(to_RGB(diag), (y_shape, x_shape), interpolation=cv2.INTER_AREA)
 
-def compose_diag_screen(curverad=0, offset=0, main_diag=None,
+def compose_diag_screen(main_diag=None,
                         diag1=None, diag2=None, diag3=None, diag4=None,
                         diag5=None, diag6=None, diag7=None, diag8=None,
                         diag9=None, diag10=None, diag11=None, diag12=None):
     #  middle panel text example
     #  using cv2 for drawing text in diagnostic pipeline.
-    font = cv2.FONT_HERSHEY_COMPLEX
     middlepanel = np.zeros((120, 1280, 3), dtype=np.uint8)
-    cv2.putText(middlepanel, 'Estimated lane curvature: {}'.format(curverad), (30, 60), font, 1, (255, 0, 0), 2)
-    cv2.putText(middlepanel, 'Estimated Meters right of center: {}'.format(offset), (30, 90), font, 1, (255, 0, 0), 2)
 
     # frame that contains all altered images
     frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
@@ -65,9 +63,6 @@ def run_compose_diag_screen(img):
 
 
 def testing_pipeline(img):
-    #get_rgb = show_histos_color_features()
-    #histo_0, histo_1, histo_2 = get_rgb(img)
-    #features, hog_img = get_hog_features(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), orient=8, pix_per_cell=20, cell_per_block=5, vis=True)
     global tracker
 
     w_boxes, heatmap = draw_all_detected_vehicles2(img)
@@ -78,8 +73,8 @@ def testing_pipeline(img):
     tracker.update_cars(raw_bboxs)
     filtered_bboxs = tracker.get_bboxs()
 
-    draw_filtered_bboxs = draw_bboxes(img, filtered_bboxs)
-    labeled_boxes = draw_labeled_bboxes(img, labels)
+    draw_filtered_bboxs = draw_bboxs(img, filtered_bboxs)
+    labeled_boxes = draw_labeled_bboxs(img, labels)
 
     cv2.line(labeled_boxes, (0, 400), (1280, 400), (0,0,255), thickness=3)
     cv2.line(labeled_boxes, (0, 656), (1280, 656), (0, 0, 255), thickness=3)
@@ -95,11 +90,11 @@ def testing_pipeline(img):
         #'diag11': convergence_line_image,
         #'diag12': hull_lines_img
     }
-    return 0, 0, draw_filtered_bboxs, processing_steps
+    return draw_filtered_bboxs, processing_steps
 
 def run_pipeline(img):
-    curverad, offset, main_img, processing_steps = testing_pipeline(img)
-    return compose_diag_screen(curverad, offset, main_img, **processing_steps)
+    main_img, processing_steps = testing_pipeline(img)
+    return compose_diag_screen(main_img, **processing_steps)
 
 
 if __name__ == '__main__':

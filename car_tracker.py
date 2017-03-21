@@ -8,6 +8,7 @@ from generate_windows import process_heatmap
 from scipy.ndimage.measurements import label
 import unittest
 import cv2
+from generate_windows import get_bboxs
 
 
 class CarTracker():
@@ -28,7 +29,7 @@ class CarTracker():
     def get_bboxs(self):
         bboxs = []
         for car in self.cars:
-            bboxs.append(car.bbox[-1])
+            bboxs.append(car.avg_bbox())
         return bboxs
 
 
@@ -38,7 +39,7 @@ class CarTracker():
         :param bbox:
         :return:
         """
-        emerging_regions = np.array([(( 900, 400), ( 1280, 700)), ((500, 400), (900, 500))]) # can only #use direction and velocity to determine
+        emerging_regions = np.array([((900, 330), (1280, 700)), ((600, 300), (1000, 550))]) # can only #use direction and velocity to determine
 
         # a tuple where first coordinate shows if the bbox is contained in emerging region
         # second coordinate is if bbox is in the forward emerging region i.e. is the car slowing down
@@ -70,7 +71,7 @@ class CarTracker():
             if i not in matches_info.keys():
                 self.cars_wait_counter[i] += 1  # after bbox has not been updated for a car for a while, force deletion
             else:
-                self.cars[i].update_physics(bboxs_new[matches_info[i][0]]) #update the physics with the new information
+                self.cars[i].update_bbox(bboxs_new[matches_info[i][0]]) #update the physics with the new information
                 self.cars_wait_counter[i] = 0  # reset counter if car has been observed
 
         for i in range(len(self.potential_cars)):
@@ -81,7 +82,7 @@ class CarTracker():
             else:
                 """TODO!!!"""
                 # if physics is updated 5 frames in total, can make a real car
-                self.potential_cars[i].update_physics(bboxs_not_matched_to_current[entering_matches_info[i][0]])
+                self.potential_cars[i].update_bbox(bboxs_not_matched_to_current[entering_matches_info[i][0]])
         possible_in_entering = [self.is_emerging(point) for point in possible_new]
 
 
@@ -96,7 +97,7 @@ class CarTracker():
                 del self.potential_cars[i]
 
         for i, count_fail_update_observed_cars in reversed(list(enumerate(self.cars_wait_counter))):
-            if count_fail_update_observed_cars >= 5:  # car has not been observed for 5 frames, so delete
+            if count_fail_update_observed_cars >= 15:  # car has not been observed for 5 frames, so delete
                 del self.cars[i]
                 del self.cars_wait_counter[i]
 
@@ -107,16 +108,6 @@ class CarTracker():
                 del self.potential_cars[i]
                 del self.potential_cars_wait_counter[i]
 
-
-
-    def is_car_enter(self):
-        pass
-
-    def potential_car_to_current(self):
-        pass
-
-    def is_car_exit(self):
-        pass
 
     def match_bboxs(self, cars, bboxs_new):
         """
@@ -188,7 +179,7 @@ class TestMatchMethods(unittest.TestCase):
 
     def test_entering_region_trivial(self):
         test_tracker = CarTracker()
-        constant_bbox_test = np.array([((550, 1000), (650, 1100))])
+        constant_bbox_test = np.array([((1000, 550), (1100, 650))])
         test_tracker.update_cars(constant_bbox_test)
         test_tracker.update_cars(constant_bbox_test)
         test_tracker.update_cars(constant_bbox_test)
@@ -197,7 +188,7 @@ class TestMatchMethods(unittest.TestCase):
     def test_entering_region_deletion(self):
 
         test_tracker = CarTracker()
-        constant_bbox_test = np.array([((550, 1000), (650, 1100))])
+        constant_bbox_test = np.array([((1000, 550), (1100, 650))])
         test_tracker.update_cars(constant_bbox_test)
         test_tracker.update_cars(constant_bbox_test)
         test_tracker.update_cars(constant_bbox_test)
@@ -208,7 +199,7 @@ class TestMatchMethods(unittest.TestCase):
 
     def test_become_valid_car(self):
         test_tracker = CarTracker()
-        constant_bbox_test = np.array([((550, 1000), (650, 1100))])
+        constant_bbox_test = np.array([((1000, 550), (1100, 650))])
         test_tracker.update_cars(constant_bbox_test)
         test_tracker.update_cars(constant_bbox_test)
         test_tracker.update_cars(constant_bbox_test)
@@ -221,26 +212,7 @@ class TestMatchMethods(unittest.TestCase):
 
 
 
-def get_bboxs(labels):
-    bboxs = []
-    for new_car_number in range(1, labels[1] + 1):
-        # Find pixels with each car_number label value
-        nonzero = (labels[0] == new_car_number).nonzero()
-        # Identify x and y values of those pixels
-        nonzeroy = np.array(nonzero[0])
-        nonzerox = np.array(nonzero[1])
-        # Define a bounding box based on min/max x and y
-        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
-        bboxs.append(bbox)
-    return bboxs
 
-def draw_bboxes(img, bboxs):
-    # Iterate through all detected cars
-    copy = img.copy()
-    for bbox in bboxs:
-        cv2.rectangle(copy, (bbox[0][0], bbox[0][1]), (bbox[1][0], bbox[1][1]), (0,0,255), 6)
-    # Return the image
-    return copy
 
 
 def distance(pt1, pt2):
@@ -264,25 +236,34 @@ def draw_labeled_bboxes(img, labels):
     return img
 
 class Car():
-    def __init__(self):
-        self.bbox = deque([], maxlen=5)
-        self.velocity = deque([], maxlen=5)
-        self.acceleration = deque([], maxlen=5)
+    def __init__(self, maxq=5):
+        self.bbox = deque([], maxlen=maxq)
+        self.velocity = deque([], maxlen=maxq)
+        self.acceleration = deque([], maxlen=maxq)
 
-    def __init__(self, bbox):
-        self.bbox = deque([bbox], maxlen=5)
-        self.velocity = deque([], maxlen=5)
-        self.acceleration = deque([], maxlen=5)
+    def __init__(self, bbox, maxq=5):
+        self.bbox = deque([bbox], maxlen=maxq)
+        self.velocity = deque([], maxlen=maxq)
+        self.acceleration = deque([], maxlen=maxq)
+
 
     def update_bbox(self, bbox):
         if self.deviation_bbox(bbox) <= 0.1:
+
             self.update_physics(bbox)
 
     def predict_bbox(self):
         if len(self.acceleration) == 0:
             return self.bbox[-1]
         else:
-            return self.bbox[-1] + (self.velocity[-1] + self.acceleration[-1])
+            return np.int32(np.mean(self.bbox, axis=0)) #+ np.int32(np.mean(self.velocity), axis=0) + np.int32(np.mean(self.acceleration), axis=0))
+
+    def avg_bbox(self):
+        if len(self.acceleration) == 0:
+            return self.bbox[-1]
+        else:
+            return np.int32(np.mean(self.bbox, axis=0))
+
 
     def update_physics(self, bbox):
         """
@@ -326,16 +307,18 @@ if __name__ == '__main__':
 
 
     test_tracker = CarTracker()
-    constant_bbox_test = np.array([((550,1000), (650, 1100))])
+    constant_bbox_test = np.array([((1000, 550), (1100, 650))])
     test_tracker.update_cars(constant_bbox_test)
     test_tracker.update_cars(constant_bbox_test)
     test_tracker.update_cars(constant_bbox_test)
     test_tracker.update_cars(constant_bbox_test)
     print(test_tracker.cars)
+    print(test_tracker.potential_cars)
     test_tracker.update_cars(constant_bbox_test)
     print(test_tracker.potential_cars)
     print(test_tracker.potential_cars_wait_counter)
     print(test_tracker.cars)
+    print(test_tracker.cars[0].avg_bbox())
 
 
 
